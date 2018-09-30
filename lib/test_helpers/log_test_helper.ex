@@ -2,6 +2,23 @@ defmodule TestHelpers.LogHelper do
   import ExUnit.Assertions
   import ExUnit.CaptureIO
 
+  def silent_log(log_function) do
+    parent = self()
+    spawn(fn -> send(parent, log_into_closure(log_function)) end)
+
+    receive do
+      message -> message
+    end
+  end
+
+  defp log_into_closure(log_function) do
+    StringIO.open("", fn closure_pid ->
+      Process.group_leader(self(), closure_pid)
+      log_function.()
+      StringIO.contents(closure_pid)
+    end)
+  end
+
   def assert_log(log_function) do
     assert capture_io(log_function)
   end
@@ -18,6 +35,18 @@ defmodule TestHelpers.LogHelper do
   def refute_log_result(desired_result, log_function) do
     send_message_by(log_function)
     do_refute_receive {:result, desired_result}
+  end
+
+  def refute_raise(block) do
+    try do
+      result = block.()
+      throw({:ok, result})
+    rescue
+      error -> raise(ExUnit.AssertionError, "Got: #{inspect error}")
+    catch
+      {:ok, _} -> true
+      unexpected -> raise(ExUnit.AssertionError, "Got: #{inspect unexpected}")
+    end
   end
 
   defp send_message_by(log_function) do

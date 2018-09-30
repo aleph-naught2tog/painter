@@ -22,20 +22,23 @@ defmodule PainterTest do
 
     test "should write to stdin" do
       assert capture_io(&test_log/0)
-
     end
 
     test "should not write to stderr" do
       message = "octopus party"
+      send_return_message = fn ->
+        send(self(), {:return, Tester.log(message)})
+      end
       meta_capture = fn ->
-        # asserting here means we can make sure it IS working, not just failing totally
-        assert capture_io(fn ->
-          output_message = Tester.log(message)
-          send(self(), {:return, output_message})
-        end)
+        # asserting here is just an extra level of safe
+        assert capture_io(send_return_message)
       end
       assert capture_io(:stderr, meta_capture) === ""
-      assert_receive {:return, message}
+      assert_receive({:return, message})
+    end
+
+    test "safe_raise should raise" do
+      assert_raise(RuntimeError, fn -> Tester.safe_raise("apples") end)
     end
   end
 
@@ -53,10 +56,17 @@ defmodule PainterTest do
   end
 
   describe "handling types" do
-    @describetag :skip
-    test "should handle binaries gracefully"
-    test "should handle non-binaries gracefully"
-    test "should not add extra strings"
+    test "should handle binaries gracefully" do
+      refute_raise(fn -> silent_log(fn -> Tester.log("pears") end) end)
+    end
+
+    test "should handle non-binaries gracefully" do
+      refute_raise(fn -> silent_log(fn -> Tester.log(%{orange: "oranges", apple: :ok}) end) end)
+    end
+
+    test "should handle nil gracefully" do
+      refute_raise(fn -> silent_log(fn -> Tester.log(nil) end) end)
+    end
   end
 
   describe "compatibility" do

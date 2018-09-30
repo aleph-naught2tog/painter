@@ -16,8 +16,10 @@ defmodule Painter do
     |> format(color, name)
   end
 
+
   defmacro __using__(color: color, name: name) do
     quote do
+      def safe_raise(error), do: raise(error)
       def log(message, label: label), do: log(message, label)
 
       def log(message) do
