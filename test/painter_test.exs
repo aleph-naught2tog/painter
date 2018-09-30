@@ -22,7 +22,20 @@ defmodule PainterTest do
 
     test "should write to stdin" do
       assert capture_io(&test_log/0)
-      assert capture_io(:stderr, &test_log/0) === ""
+
+    end
+
+    test "should not write to stderr" do
+      message = "octopus party"
+      meta_capture = fn ->
+        # asserting here means we can make sure it IS working, not just failing totally
+        assert capture_io(fn ->
+          output_message = Tester.log(message)
+          send(self(), {:return, output_message})
+        end)
+      end
+      assert capture_io(:stderr, meta_capture) === ""
+      assert_receive {:return, message}
     end
   end
 
@@ -34,8 +47,8 @@ defmodule PainterTest do
 
     test "labeled log should return message unchanged" do
       message = "beep boop"
-      result_message = Tester.log(message, label: "here's the label")
-      assert message === result_message
+      log_with_label = fn -> Tester.log(message, label: "some label") end
+      assert_log_result(message, log_with_label)
     end
   end
 
