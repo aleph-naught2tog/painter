@@ -4,6 +4,7 @@
 # dev artifacts
 /.idea
 /.vscode
+/.elixir_ls
 *.iml
 
 # If you run "mix test --cover", coverage assets end up here.
