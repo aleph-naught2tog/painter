@@ -1,4 +1,4 @@
-defmodule Helpers.LogTestHelper do
+defmodule TestHelpers.LogHelper do
   import ExUnit.Assertions
   import ExUnit.CaptureIO
 

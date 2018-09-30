@@ -1,4 +1,6 @@
 defmodule Painter.ColorHelperTest do
+  alias TestHelpers.ColorHelper
+
   use ExUnit.Case
-  doctest Painter.ColorHelper
+  doctest ColorHelper
 end

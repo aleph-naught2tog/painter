@@ -1,17 +1,19 @@
+defmodule Tester do
+  use Painter, color: :red, name: "Tester"
+  def test_log do
+    Tester.log("hello world")
+  end
+end
+
 defmodule PainterTest do
   use ExUnit.Case
   doctest Painter
 
   import ExUnit.CaptureIO
-  import Painter.ColorHelper
+  import TestHelpers.ColorHelper
+  import TestHelpers.LogHelper
 
-  defmodule Tester do
-    use Painter, color: :red, name: "Tester"
-  end
-
-  defp test_log do
-    Tester.log("hello world")
-  end
+  import Tester, only: [test_log: 0]
 
   describe "basic usage" do
     test "should have ansi" do
@@ -27,8 +29,7 @@ defmodule PainterTest do
   describe "idempotency" do
     test "should return message unchanged" do
       message = "hello world"
-      result_message = Tester.log(message)
-      assert message === result_message
+      assert_log_result(message, &test_log/0)
     end
 
     test "labeled log should return message unchanged" do

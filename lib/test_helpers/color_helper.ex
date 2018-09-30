@@ -1,4 +1,4 @@
-defmodule Painter.ColorHelper do
+defmodule TestHelpers.ColorHelper do
   import ExUnit.CaptureIO
 
   @spec has_color(atom, fun) :: boolean
@@ -54,12 +54,12 @@ defmodule Painter.ColorHelper do
 
   ## Examples
 
-      iex> regex = Painter.ColorHelper.all_colored_regex(:red, "apples")
+      iex> regex = TestHelpers.ColorHelper.all_colored_regex(:red, "apples")
       iex> message = IO.ANSI.red() <> "apples"
       iex> Regex.match?(regex, message)
       true
 
-      iex> regex = Painter.ColorHelper.all_colored_regex(:green, "apples")
+      iex> regex = TestHelpers.ColorHelper.all_colored_regex(:green, "apples")
       iex> message = IO.ANSI.red() <> "apples"
       iex> Regex.match?(regex, message)
       false
