@@ -19,7 +19,6 @@ defmodule PainterTest do
     end
 
     test "should write to stdin" do
-      message = "hello"
       assert capture_io(&test_log/0)
       assert capture_io(:stderr, &test_log/0) === ""
     end
@@ -51,7 +50,11 @@ defmodule PainterTest do
     test "should not use colors if ANSI not enabled"
   end
 
-  test "tests work" do
+  test "assert only accepts true" do
     assert true
+  end
+
+  test "refute only accepts false" do
+    refute false
   end
 end
