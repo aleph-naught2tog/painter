@@ -3,16 +3,36 @@ defmodule Painter do
   Documentation for Painter.
   """
 
-  @doc """
-  Hello world.
+  def format(message, color, name) when is_binary(message) do
+    apply(IO.ANSI, color, [])
+    |> Kernel.<>("[#{name}] ")
+    |> Kernel.<>(IO.ANSI.reset())
+    |> Kernel.<>(message)
+  end
 
-  ## Examples
+  def format(message, color, name) do
+    message
+    |> inspect(pretty: true)
+    |> format(color, name)
+  end
 
-      iex> Painter.hello()
-      :world
+  defmacro __using__(color: color, name: name) do
+    quote do
+      def log(message, label: label), do: log(message, label)
 
-  """
-  def hello do
-    :world
+      def log(message) do
+        message
+        |> Painter.format(unquote(color), unquote(name))
+        |> IO.puts()
+
+        message
+      end
+
+      def log(message, label) do
+        log("#{label}: " <> inspect(message))
+
+        message
+      end
+    end
   end
 end
