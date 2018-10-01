@@ -65,6 +65,7 @@ defmodule TestHelpers.ColorHelper do
       false
 
   """
+  @spec all_colored_regex(atom, binary) :: %Regex{}
   def all_colored_regex(color, message) do
     color_string = apply(IO.ANSI, color, [])
     escaped_color_string = Regex.escape(color_string)
