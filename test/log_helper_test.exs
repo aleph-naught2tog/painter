@@ -2,7 +2,7 @@ defmodule LogHelperTest do
   import TestHelpers.LogHelper
 
   use ExUnit.Case
-  doctest TestHelpers.LogHelper
+  doctest TestHelpers.LogHelper, import: true
 
   import ExUnit.CaptureIO
 
