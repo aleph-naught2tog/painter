@@ -31,28 +31,32 @@ defmodule TestHelpers.LogHelper do
     refute capture_io(log_function)
   end
 
+  @spec assert_log_result(desired_result::any, log_function::fun) :: boolean
   def assert_log_result(desired_result, log_function) do
     send_message_by(log_function)
     do_assert_receive {:result, desired_result}
   end
 
+  @spec refute_log_result(desired_result::any, log_function::fun) :: boolean
   def refute_log_result(desired_result, log_function) do
     send_message_by(log_function)
     do_refute_receive {:result, desired_result}
   end
 
+  @spec refute_raise(block::fun) :: boolean | no_return
   def refute_raise(block) do
     try do
       result = block.()
       throw({:ok, result})
     rescue
-      error -> reraise(ExUnit.AssertionError, __STACKTRACE__)
+      _ -> reraise(ExUnit.AssertionError, __STACKTRACE__)
     catch
       {:ok, _} -> true
       unexpected -> raise(ExUnit.AssertionError, "Got: #{inspect unexpected}")
     end
   end
 
+  @spec send_message_by(log_function::fun) :: binary
   defp send_message_by(log_function) do
     current_pid = self()
 
@@ -62,9 +66,12 @@ defmodule TestHelpers.LogHelper do
     end)
   end
 
+  @spec do_assert_receive(result::any) :: boolean
   defp do_assert_receive(result), do: do_receive(result, :assert)
+  @spec do_refute_receive(result::any) :: boolean
   defp do_refute_receive(result), do: do_receive(result, :refute)
 
+  @spec do_receive(desired_result::any, assert_or_refute:: :assert | :refute) :: boolean
   defp do_receive(desired_result, assert_or_refute) do
     receive do
       message ->
