@@ -22,8 +22,7 @@ defmodule TestHelpers.ColorHelper do
 
   @doc ~S"""
 
-    iex> has_any_ansi("oranges")
-    false
+  ## Examples
 
     iex> has_any_ansi(IO.ANSI.blue() <> "apples")
     true
@@ -36,6 +35,8 @@ defmodule TestHelpers.ColorHelper do
   end
 
   @doc ~S"""
+
+  ## Examples
 
       iex> message = IO.ANSI.red() <> "hello world"
       iex> has_no_ansi(message)
