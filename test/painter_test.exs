@@ -7,7 +7,7 @@ end
 
 defmodule PainterTest do
   use ExUnit.Case
-  doctest Painter
+  doctest Painter, import: true
 
   import ExUnit.CaptureIO
   import TestHelpers.ColorHelper

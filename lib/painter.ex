@@ -2,26 +2,33 @@ defmodule Painter do
   @moduledoc """
   Documentation for Painter.
   """
-
+  @spec format(message::binary, color::atom, name::binary) :: binary
   def format(message, color, name) when is_binary(message) do
-    apply(IO.ANSI, color, [])
-    |> Kernel.<>("[#{name}] ")
-    |> Kernel.<>(IO.ANSI.reset())
-    |> Kernel.<>(message)
+    get_header(color, name) <> message
   end
 
+  @spec format(message::any, color::atom, name::binary) :: binary
   def format(message, color, name) do
     message
     |> inspect(pretty: true)
     |> format(color, name)
   end
 
+  @spec get_header(color::atom, name::binary) :: binary
+  defp get_header(color, name) do
+    color_start = apply(IO.ANSI, color, [])
+    reset = IO.ANSI.reset()
+    color_start <> "[#{name}]" <> reset
+  end
 
   defmacro __using__(color: color, name: name) do
     quote do
       def safe_raise(error), do: raise(error)
+
+      @spec log(message::binary, label: message::binary) :: binary
       def log(message, label: label), do: log(message, label)
 
+      @spec log(message::any) :: any
       def log(message) do
         message
         |> Painter.format(unquote(color), unquote(name))
@@ -30,6 +37,7 @@ defmodule Painter do
         message
       end
 
+      @spec log(message::any, label::binary) :: any
       def log(message, label) do
         log("#{label}: " <> inspect(message))
 
