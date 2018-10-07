@@ -1,7 +1,12 @@
 defmodule Tester do
-  use Painter, color: :red, name: "Tester"
+  use Painter, color: :red
+
   def test_log do
     Tester.log("hello world")
+  end
+
+  def test_debug do
+    Tester.debug("apples")
   end
 end
 
@@ -13,7 +18,13 @@ defmodule PainterTest do
   import TestHelpers.ColorHelper
   import TestHelpers.LogHelper
 
-  import Tester, only: [test_log: 0]
+  import Tester
+
+  describe "Debug" do
+    test "should log" do
+      assert_log(&test_debug/0)
+    end
+  end
 
   describe "basic usage" do
     test "should have ansi" do
@@ -35,10 +46,6 @@ defmodule PainterTest do
       end
       assert capture_io(:stderr, meta_capture) === ""
       assert_receive({:return, message})
-    end
-
-    test "safe_raise should raise" do
-      assert_raise(RuntimeError, fn -> Tester.safe_raise("apples") end)
     end
   end
 
