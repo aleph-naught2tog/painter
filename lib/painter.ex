@@ -14,8 +14,8 @@ defmodule Painter do
   Documentation for Painter.
   """
 
-  def format(message, color, name, opts) when is_binary(message) do
-    get_header(color, name, opts) <> message
+  def format(message, color, name, _opts) when is_binary(message) do
+    do_color(name, color) <> message
   end
 
   def format(message, color, name, opts) do
@@ -24,30 +24,33 @@ defmodule Painter do
     |> format(color, name, opts)
   end
 
-  defp get_header(color, name, opts) do
-    name
-    |> do_color(color)
-  end
-
+  defp do_log_meta("Elixir." <> name, mode: mode), do: do_log_meta(name, mode: mode)
   defp do_log_meta(name, mode: mode) do
     "[#{name}:#{mode}] "
   end
 
+  defp do_log_meta("Elixir." <> name), do: do_log_meta(name)
   defp do_log_meta(name) do
     "[#{name}] "
   end
 
+  defp do_color(string, color) when not is_binary(string) do
+    do_color(inspect(string, pretty: true), color)
+  end
+  
   defp do_color(string, color) do
     chroma = apply(IO.ANSI, color, [])
     reset = apply(IO.ANSI, :reset, [])
     chroma <> string <> reset
   end
 
-
   def do_label(message, label) when is_binary(message) do
-    "#{label}: " <> inspect(message)
+    "#{label}: " <> message
   end
-  def do_label(message, label), do: do_label(inspect(message), label)
+
+  def do_label(message, label) do
+    do_label(inspect(message), label)
+  end
 
   def do_log(name, color, message, opts \\ []) do
     maybe_label = Keyword.get(opts, :label)
