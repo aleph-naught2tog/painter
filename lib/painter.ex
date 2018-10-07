@@ -7,117 +7,105 @@ defmodule Painter.Opts do
 end
 
 defmodule Painter do
-  @callback __color__::atom
-  @callback __name__::binary
-
-  @color &Painter.__color__/0
-  @name &Painter.__name__/0
+  @callback paint_color()::atom
+  @callback paint_name()::binary
 
   @moduledoc """
   Documentation for Painter.
   """
-#  def format(message, color, name, opts \\ [])
-#  def format(message, color, name, opts) when is_binary(message) do
-#    get_header(color, name, opts) <> message
-#  end
-#
-#  def format(message, color, name, opts) do
-#    message
-#    |> inspect(pretty: true)
-#    |> format(color, name, opts)
-#  end
-#
-#  defp get_header(color, name, opts) do
-#    name
-#    |> do_log_meta(opts)
-#    |> do_color(color)
-#    |> do_opts(opts)
-#  end
-#
-#  defp do_opts(value, opts) do
-#    Enum.reduce(
-#      opts,
-#      value,
-#      fn
-#        (current, tuple_value) when is_tuple(tuple_value) ->
-#          handle_opt("~~#{current}", tuple_value)
-#        (_,_) -> "#{value}"
-#      end
-#    )
-#  end
-#
-#  defp handle_opt(header, {key, value}) do
-#    case key do
-#      :label -> "#{header} #{value}:"
-#      _ -> header
-#    end
-#  end
-#
-#  def safe_raise(error), do: raise error
-#
-#  defp do_log_meta(name, mode: mode) do
-#    "[#{name}:#{mode}] "
-#  end
-#
-#  defp do_log_meta(name, _) do
-#    "[#{name}] "
-#  end
-#
-#  defp do_color(string, color) do
-#    chroma = apply(IO.ANSI, color, [])
-#    reset = apply(IO.ANSI, :reset, [])
-#    chroma <> string <> reset
-#  end
-#
-#  def do_label(message, label) do
-#    "#{label}: " <> inspect(message)
-#  end
 
-#  def log(message, opts \\ []) do
-#    maybe_label = Keyword.get(opts, :label)
-#    maybe_mode = Keyword.get(opts, :mode)
-#
-#    final_message =
-#      case maybe_label do
-#        nil -> message
-#        _ -> do_label(message, maybe_label)
-#      end
-#
-#    header =
-#      case maybe_mode do
-#        nil -> @name
-#        _ -> do_log_meta(@name, mode: maybe_mode)
-#      end
-#
-#    final_message
-#    |> Painter.format(@color, header, opts)
-#    |> IO.puts()
-#
-#    message
-#  end
+  def format(message, color, name, opts) when is_binary(message) do
+    get_header(color, name, opts) <> message
+  end
 
-#  def debug(variable) do
-#    log(variable, mode: :debug)
-#  end
-#
-#  def debug(variable, opts) do
-#    log(variable, [opts | {:mode, :debug}])
-#  end
+  def format(message, color, name, opts) do
+    message
+    |> inspect(pretty: true)
+    |> format(color, name, opts)
+  end
 
-  def log(message), do: "message"
+  defp get_header(color, name, opts) do
+    name
+    |> do_color(color)
+  end
+
+  defp do_log_meta(name, mode: mode) do
+    "[#{name}:#{mode}] "
+  end
+
+  defp do_log_meta(name) do
+    "[#{name}] "
+  end
+
+  defp do_color(string, color) do
+    chroma = apply(IO.ANSI, color, [])
+    reset = apply(IO.ANSI, :reset, [])
+    chroma <> string <> reset
+  end
+
+
+  def do_label(message, label) when is_binary(message) do
+    "#{label}: " <> inspect(message)
+  end
+  def do_label(message, label), do: do_label(inspect(message), label)
+
+  def do_log(name, color, message, opts \\ []) do
+    maybe_label = Keyword.get(opts, :label)
+    maybe_mode = Keyword.get(opts, :mode)
+
+    final_message =
+      case maybe_label do
+        nil -> message
+        _ -> do_label(message, maybe_label)
+      end
+
+    header =
+      case maybe_mode do
+        nil -> do_log_meta(name)
+        _ -> do_log_meta(name, mode: maybe_mode)
+      end
+
+    final_message
+    |> Painter.format(color, header, opts)
+    |> IO.puts()
+
+    message
+  end
+
+  def debug(mod, message, opts \\ []) do
+    new_opts = Keyword.merge(opts, [mode: :debug])
+    log(mod, message, new_opts)
+  end
+
+  def log(mod, message, opts \\ []) do
+    color = mod_color(mod)
+    name = mod_name(mod)
+
+    do_log(name, color, message, opts)
+  end
+
+  defp mod_color(mod) do
+    apply(mod, :paint_color, [])
+  end
+
+  defp mod_name(mod) do
+    apply(mod, :paint_name, [])
+  end
 
   defmodule Defaults do
     defmacro __using__(_) do
+      caller = __CALLER__.module
       quote do
-        import Painter
+        def log(message), do: Painter.log(unquote(caller), message)
+        def log(message, opts), do: Painter.log(unquote(caller), message, opts)
+        def debug(message), do: Painter.debug(unquote(caller), message)
+        def debug(message, opts), do: Painter.debug(unquote(caller), message, opts)
       end
     end
   end
 
   defmacro __using__(init_opts \\ [])
   defmacro __using__(list_opts) do
-    IO.inspect(list_opts, label: "init_opts before parse")
-
     init_opts =
       unless Keyword.get(list_opts, :name) do
         temp_opts = struct(Painter.Opts, list_opts)
@@ -140,12 +128,12 @@ defmodule Painter do
       end)
 
       @impl true
-      def __color__ do
+      def paint_color do
         unquote(chosen_color)
       end
 
       @impl true
-      def __name__ do
+      def paint_name do
         unquote(chosen_name)
       end
 
