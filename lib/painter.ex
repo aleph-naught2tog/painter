@@ -15,7 +15,7 @@ defmodule Painter do
   """
 
   def format(message, color, name, _opts) when is_binary(message) do
-    do_color(name, color) <> message
+    do_color(name, color) <> " " <> message
   end
 
   def format(message, color, name, opts) do
@@ -26,18 +26,18 @@ defmodule Painter do
 
   defp do_log_meta("Elixir." <> name, mode: mode), do: do_log_meta(name, mode: mode)
   defp do_log_meta(name, mode: mode) do
-    "[#{name}:#{mode}] "
+    "[#{name}:#{mode}]"
   end
 
   defp do_log_meta("Elixir." <> name), do: do_log_meta(name)
   defp do_log_meta(name) do
-    "[#{name}] "
+    "[#{name}]"
   end
 
   defp do_color(string, color) when not is_binary(string) do
     do_color(inspect(string, pretty: true), color)
   end
-  
+
   defp do_color(string, color) do
     chroma = apply(IO.ANSI, color, [])
     reset = apply(IO.ANSI, :reset, [])
@@ -55,6 +55,7 @@ defmodule Painter do
   def do_log(name, color, message, opts \\ []) do
     maybe_label = Keyword.get(opts, :label)
     maybe_mode = Keyword.get(opts, :mode)
+    maybe_reverse = Keyword.get(opts, :reverse)
 
     final_message =
       case maybe_label do
@@ -63,10 +64,17 @@ defmodule Painter do
       end
 
     header =
-      case maybe_mode do
+      maybe_mode
+      |> case do
         nil -> do_log_meta(name)
         _ -> do_log_meta(name, mode: maybe_mode)
       end
+      |> (&if (maybe_reverse !== nil) do
+        IO.ANSI.reverse()
+        |> Kernel.<>(&1)
+      else
+        &1
+      end).()
 
     final_message
     |> Painter.format(color, header, opts)
@@ -87,6 +95,15 @@ defmodule Painter do
     do_log(name, color, message, opts)
   end
 
+  def mark(mod, message, opts \\ []) do
+    new_opts =
+      opts
+      |> Keyword.merge([mode: :mark])
+      |> Keyword.merge([reverse: true])
+
+    log(mod, message, new_opts)
+  end
+
   defp mod_color(mod) do
     apply(mod, :paint_color, [])
   end
@@ -101,8 +118,12 @@ defmodule Painter do
       quote do
         def log(message), do: Painter.log(unquote(caller), message)
         def log(message, opts), do: Painter.log(unquote(caller), message, opts)
+
         def debug(message), do: Painter.debug(unquote(caller), message)
         def debug(message, opts), do: Painter.debug(unquote(caller), message, opts)
+
+        def mark(message), do: Painter.mark(unquote(caller), message)
+        def mark(message, opts), do: Painter.mark(unquote(caller), message, opts)
       end
     end
   end
