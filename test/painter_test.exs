@@ -16,7 +16,7 @@ defmodule Skip do
       IO.puts("\n       <<< WARNING >>>")
       IO.puts("ANSI is not enabled on this device.")
       IO.puts(" Tests that require it will skip.")
-      IO.puts("       <<< -- -- -- >>\n")
+      IO.puts("       <<< -- -- -- >>>\n")
       :skip
     end
   end
@@ -37,16 +37,82 @@ defmodule PainterTest do
 
   
   describe "highlighting" do
-    @describetag :only
-    test "dsadsad" do
-      Tester.log("hot potato", mark_list: [magenta: "potato"])
+    test "has only marked" do
+      message = "apples are tasty"
+      <<"apples", _rest::binary>> = message
+      rules = [red: "apples"]
+      apples = mark_up("apples", :red)
+      expected = apples <> " are tasty"
+      result = capture_io(fn -> Tester.log(message, mark_list: rules) end)
+      assert String.ends_with?(result, expected <> "\n")
+    end
+ 
+    test "should allow weird lists" do
+      message = "apples are tasty"
+      <<"apples", " ", "are", rest::binary>> = message
+      rules = [{:red, "apples"}, "are"]
+      are = mark_up("are")
+      apples = mark_up("apples", :red)
+      expected = apples <> " " <> are <> rest
+
+      result = capture_io(fn -> Tester.log(message, mark_list: rules) end)
+      assert String.ends_with?(result, expected <> "\n")
+    end
+    
+    test "should allow regexes" do
+      message = "apples are tasty"
+      <<"apples", " ", "are", rest::binary>> = message
+      rules = [{:red, ~r{(?i)APPLES?}}, "are"]
+      are = mark_up("are")
+      apples = mark_up("apples", :red)
+      expected = apples <> " " <> are <> rest
+
+      result = capture_io(fn -> Tester.log(message, mark_list: rules) end)
+      assert String.ends_with?(result, expected <> "\n")
+    end
+    
+    test "should highight more if found" do
+      message = "apples are full of rippley goodness"
+      <<"apples", " ", "are", _rest::binary>> = message
+      rules = [{:cyan, ~r{(?i)[aeiou]p+LES?}}, "are"]
+      are = mark_up("are")
+      apples = mark_up("apples", :cyan)
+      ripple = mark_up("ipple", :cyan)
+
+
+      result = capture_io(fn -> Tester.log(message, mark_list: rules) end)
+      assert result =~ apples
+      assert result =~ ripple
+      assert result =~ are
+    end
+    
+    @tag skip_without_ansi()
+    test "last should win" do
+      message = "apples are full of rippley goodness"
+      <<"apples", " ", "are", _rest::binary>> = message
+      rules = [{:cyan, ~r{(?i)[aeiou]p+lES?}}, "are", {:magenta, "p"}]
+      are = mark_up("are")
+      apples = mark_up("apples", :cyan)
+      ripple = mark_up("ipple", :cyan)
+      p = mark_up("p", :magenta)
+
+      result = capture_io(fn -> Tester.log(message, mark_list: rules) end)
+      refute result =~ apples
+      refute result =~ ripple
+      assert result =~ are
+      assert result =~ p
+    end
+    
+    def mark_up(word, color \\ :yellow) do
+      AnsiHelper.do_ansi(color)
+      <> AnsiHelper.do_ansi(:reverse)
+      <> word
+      <> AnsiHelper.do_ansi(:reset)
     end
   end
 
   describe "should not use ansi when not enabled" do
     test "should not have ansi when not enabled" do
-      test_log()
-
       if IO.ANSI.enabled?() do
         IO.puts("Warning, ansi is ENABLED, can't test not-enabled.")
       else
@@ -93,6 +159,10 @@ defmodule PainterTest do
     test "should return message unchanged" do
       message = "hello world"
       assert_log_result(message, &test_log/0)
+      assert_log_result(message, fn -> Tester.log(message) end)
+      assert_log_result(message, fn -> Tester.debug(message) end)
+      assert_log_result(message, fn -> Tester.mark(message) end)
+      assert_log_result(message, fn -> Tester.log(message, mark_list: ["he"]) end)
     end
 
     test "labeled log should return message unchanged" do

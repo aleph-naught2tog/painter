@@ -63,7 +63,8 @@ defmodule Painter do
   @spec get_filter(word::binary|Regex.t, color::atom|nil) :: (binary->binary)
   def get_filter(word, color \\ :yellow)
   def get_filter(word, color) when is_binary(word) do
-    case Regex.compile(word) do
+    escaped = Regex.escape(word)
+    case Regex.compile(escaped) do
       {:ok, regex} -> get_filter(regex, color)
       _ -> ident()
     end 
@@ -85,8 +86,6 @@ defmodule Painter do
   @spec prep_filter(list) :: (binary->binary)
   def prep_filter(nil), do: ident()
   def prep_filter(maybe_mark_list) do
-    IO.puts("=====")
-    
     filters = maybe_mark_list
     |> Enum.map(fn current ->
       case current do

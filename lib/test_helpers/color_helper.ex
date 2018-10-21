@@ -20,7 +20,6 @@ defmodule TestHelpers.ColorHelper do
   @spec has_any_ansi(io_function::fun) :: boolean
   def has_any_ansi(io_function) when is_function(io_function) do
     result = capture_io(io_function)
-    IO.inspect(result)
     has_any_ansi(result)
   end
 
