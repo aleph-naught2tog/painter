@@ -1,6 +1,8 @@
 defmodule TestHelpers.ColorHelper do
   import ExUnit.CaptureIO
-
+  
+  @dialyzer {:nowarn_function, has_color: 2}
+  
   @spec has_color(target_color::atom, io_function::fun) :: boolean
   def has_color(target_color, io_function) when is_function(io_function) do
     result = capture_io(io_function)
@@ -14,9 +16,11 @@ defmodule TestHelpers.ColorHelper do
     result =~ ~r/#{escaped_color_string}/
   end
 
+  @dialyzer {:nowarn_function, has_any_ansi: 1}
   @spec has_any_ansi(io_function::fun) :: boolean
   def has_any_ansi(io_function) when is_function(io_function) do
     result = capture_io(io_function)
+    IO.inspect(result)
     has_any_ansi(result)
   end
 

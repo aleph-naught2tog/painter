@@ -1,15 +1,31 @@
 defmodule AnsiHelper do
   alias IO.ANSI
 
-  @colors []
-  defguard is_color(maybe_color) when is_atom(maybe_color) and maybe_color in @colors
-
-  def do_color(color) when is_binary(color), do: do_color(String.to_atom(color))
-  def do_color(color) when is_color(color) do
-    apply(ANSI, color, [])
+  @spec color?(maybe_color::any) :: boolean
+  def color?(maybe_color) do
+    maybe_color in colors()
+  end
+  
+  @spec reverse(s::binary, nil | any)::s::binary
+  def reverse(string, nil), do: string
+  def reverse(string, _) do
+    do_ansi(:reverse) <> string
   end
 
-  @colors [
+  @spec reset() :: binary
+  def reset(), do: do_ansi(:reset)
+
+  @spec do_ansi(color::atom) :: binary
+  def do_ansi(color) do
+    if ANSI.enabled? do
+      apply(ANSI, color, [])
+    else
+        ""
+    end
+  end
+
+  def colors do
+    [
     :black,
     :black_background,
     :blink_off,
@@ -98,4 +114,5 @@ defmodule AnsiHelper do
     :yellow,
     :yellow_background
   ]
+end
 end

@@ -20,30 +20,33 @@ defmodule TestHelpers.LogHelper do
       StringIO.contents(closure_pid)
     end)
   end
-
+  
+  @dialyzer {:nowarn_function, assert_log: 1}
   @spec assert_log(log_function::fun) :: boolean
   def assert_log(log_function) do
     assert capture_io(log_function)
   end
 
-  @spec refute_log(log_function::fun) :: boolean
+  @dialyzer {:nowarn_function, refute_log: 1}
+  @spec refute_log(log_function::fun) :: false | no_return
   def refute_log(log_function) do
     refute capture_io(log_function)
   end
 
   @spec assert_log_result(desired_result::any, log_function::fun) :: boolean
   def assert_log_result(desired_result, log_function) do
-    send_message_by(log_function)
+    _res = send_message_by(log_function)
     do_assert_receive {:result, desired_result}
   end
 
   @spec refute_log_result(desired_result::any, log_function::fun) :: boolean
   def refute_log_result(desired_result, log_function) do
-    send_message_by(log_function)
+    _res = send_message_by(log_function)
     do_refute_receive {:result, desired_result}
   end
-
-  @spec refute_raise(block::fun) :: boolean | no_return
+  
+  @dialyzer {:nowarn_function, refute_raise: 1}
+  @spec refute_raise(block::fun) :: true | no_return
   def refute_raise(block) do
     try do
       result = block.()
@@ -55,7 +58,8 @@ defmodule TestHelpers.LogHelper do
       unexpected -> raise(ExUnit.AssertionError, "Got: #{inspect unexpected}")
     end
   end
-
+  
+  @dialyzer {:nowarn_function, send_message_by: 1}
   @spec send_message_by(log_function::fun) :: binary
   defp send_message_by(log_function) do
     current_pid = self()
@@ -66,11 +70,12 @@ defmodule TestHelpers.LogHelper do
     end)
   end
 
-  @spec do_assert_receive(result::any) :: boolean
+  @spec do_assert_receive({:result, any}) :: boolean
   defp do_assert_receive(result), do: do_receive(result, :assert)
-  @spec do_refute_receive(result::any) :: boolean
+  @spec do_refute_receive({:result, any}) :: boolean
   defp do_refute_receive(result), do: do_receive(result, :refute)
-
+  
+  @dialyzer {:nowarn_function, do_receive: 2}
   @spec do_receive(desired_result::any, assert_or_refute:: :assert | :refute) :: boolean
   defp do_receive(desired_result, assert_or_refute) do
     receive do

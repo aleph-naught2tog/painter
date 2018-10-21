@@ -12,11 +12,11 @@ defmodule Painter.MixProject do
         flags: [
           :race_conditions,
           :underspecs,
+          :unknown,
           :unmatched_returns,
-          :overspecs,
-          :specdiffs,
           :error_handling
-        ]
+          ],
+        ignore_warnings: ".dialyzer_ignore.exs"
       ]
     ]
   end
@@ -35,13 +35,7 @@ defmodule Painter.MixProject do
         only: [:dev, :test],
         runtime: false
       },
-      {
-        :dialyxir,
-        # git: "https://github.com/aleph-naught2tog/dialyxir.git",
-        path: "../dialyxir",
-        only: [:dev],
-        runtime: false
-      }
+      {:dialyxir, "~> 1.0.0-rc.3", only: [:dev], runtime: false}
     ]
   end
 end
