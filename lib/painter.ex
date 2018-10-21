@@ -1,3 +1,9 @@
+# TODO: currently, when we have any options, 
+#       we lose the pretty-print from inspect.
+
+# TODO: "frame" for long stuff -- ie, long things get pushed to next line
+#       and we have an open/close linein the color
+
 defmodule Painter.Opts do
   defstruct color: :cyan,
             with_defaults: true,
@@ -105,7 +111,8 @@ defmodule Painter do
     maybe_mode = Keyword.get(opts, :mode)
     maybe_reverse = Keyword.get(opts, :reverse)
     maybe_mark_list = Keyword.get(opts, :mark_list)
-    
+    prefix = Keyword.get(opts, :prefix, "")
+    IO.inspect(prefix, label: "is nil? #{prefix === nil}")
     mark_filter = prep_filter(maybe_mark_list)
 
     header =
@@ -120,6 +127,17 @@ defmodule Painter do
     |> IO.puts()
 
     message
+  end
+
+  @spec write(mod::module, message::any, opts::Keyword.t) :: message::any
+  def write(mod, message, opts \\ []) do
+    new_opts = Keyword.merge(opts, mode: :write)
+    log(mod, message, new_opts)
+  end
+  
+  def value(mod, message, opts \\ []) do
+    log(mod, __ENV__, opts)
+    log(mod, message, opts)
   end
 
   @spec debug(mod::module, message::any, opts::Keyword.t) :: message::any
@@ -169,29 +187,64 @@ defmodule Painter do
       apply(mod, :paint_name, [])
     end
   end
+  
+  def paint_color, do: :light_blue
+  def paint_name, do: __MODULE__
+
+
+  def parse({name, _, nil} = value, context) when is_atom(name) do
+    type = "Variable"
+    
+  end
+  def parse({:&, _, arguments} = value, context) do
+    type = "Reference"
+    {mod, {function_name, arity}, line_number} = context
+    from = "#{mod}.#{function_name}/#{arity}"
+    "\n#{type}"
+  end
+  def parse({local_call, _, arguments} = value, context) when is_atom(local_call) do
+    type = "Local call"
+
+    from = "#{}"
+
+  end
+  def parse({remote_call, _, arguments} = value, context) when is_tuple(remote_call) do
+    type = "Remote call"
+
+    from = "#{}"
+
+  end
+  def parse(value, context) do
+    type = "Literal"
+
+    from = "#{}"
+
+  end
+  
+  def context(env) do
+    {env.module, env.function, env.line}
+  end
 
   defmodule Defaults do
     defmacro __using__(_) do
       caller = __CALLER__.module
 
-      quote do
-        def log(message), do: Painter.log(unquote(caller), message)
-        def log(message, opts), do: Painter.log(unquote(caller), message, opts)
-
-        def debug(message), do: Painter.debug(unquote(caller), message)
-        def debug(message, opts), do: Painter.debug(unquote(caller), message, opts)
-
-        def mark(message), do: Painter.mark(unquote(caller), message)
-        def mark(message, opts), do: Painter.mark(unquote(caller), message, opts)
-
-        def error(message), do: Painter.error(unquote(caller), message)
-        def error(message, opts), do: Painter.error(unquote(caller), message, opts)
+      quote location: :keep do
+        defmacro value(message) do  
+          current_context = Painter.parse(message, Painter.context(__CALLER__))
+          quote do
+          end
+        end
+        
+        def log(message, opts \\ []), do: Painter.log(unquote(caller), message, opts)
+        def debug(message, opts \\ []), do: Painter.debug(unquote(caller), message, opts)
+        def mark(message, opts \\ []), do: Painter.mark(unquote(caller), message, opts)
+        def error(message, opts \\ []), do: Painter.error(unquote(caller), message, opts)
       end
     end
   end
 
   defmacro __using__(init_opts \\ [])
-
   defmacro __using__(list_opts) do
     init_opts =
       unless Keyword.get(list_opts, :name) do
