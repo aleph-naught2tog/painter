@@ -1,17 +1,60 @@
-# TODO: currently, when we have any options, 
-#       we lose the pretty-print from inspect.
-
-# TODO: "frame" for long stuff -- ie, long things get pushed to next line
-#       and we have an open/close linein the color
-
 defmodule Painter.Opts do
   defstruct color: :cyan,
             with_defaults: true,
-            name: nil
+            name: nil,
+            width: 80
+  # todo: add -- default values to flag, verbosity, etc
+end
+
+defmodule Hooks do
+  def teeniest_c do
+    teeniest_c = ~S"""
+    #include <unistd.h>
+    #include <stdio.h>
+    
+    int main(void) 
+    {
+      puts("hello, world");
+      
+      return 0;
+    }
+    """
+  end
+  
+  def __before_compile__(_) do
+    IO.puts("compiling")
+    tmp_dir = System.tmp_dir()
+    filename = tmp_dir <> "isatty.c"
+    binname = "isatty"
+    binpath = tmp_dir <> binname
+    
+    unless File.exists?(binpath) do
+      result = File.open(filename, [:write], fn file -> 
+        case IO.write(file, teeniest_c()) do
+          :ok -> System.cmd("gcc", [filename, "-o", binpath])
+        end
+      end)
+      
+      case result do
+        {:ok, {_, 0}} -> 
+          System.cmd(binpath, [])
+          |> IO.inspect()
+        _ -> IO.inspect(result, label: "FAIL")
+      end
+    end
+    
+    quote do
+      def isatty(_file) do
+
+      end
+    end
+  end
 end
 
 defmodule Painter do
   import AnsiHelper
+  
+  @before_compile Hooks
 
   @callback paint_color() :: atom
   @callback paint_name() :: binary
@@ -20,31 +63,27 @@ defmodule Painter do
   Documentation for Painter.
   """
 
-  @spec format(message::any, color::atom, name::binary, opts::Keyword.t)::message::any
-  def format(message, color, name, _opts) when is_binary(message) do
-    do_color(name, color) <> " " <> message
+  def isatty(_file \\ "") do
+    System.cmd("./a.out", [])
   end
 
+  @spec local_inspect(message::any, inspect_opts:: Keyword.t) :: binary
+  def local_inspect(message, inspect_opts \\ []) do
+    default_opts = [pretty: true]
+    inspect(message, Keyword.merge(default_opts, inspect_opts))
+  end
+
+  @spec format(message::any, color::atom, name::binary, opts::Keyword.t)::message::any
+  def format(message, color, name, opts \\ [])
+  def format("",_,_,_), do: "<EMPTY_STRING>"
+  def format(<<0>>,_,_,_), do: "<NULL_BYTE>"
+  def format(message,_,_,_) when is_binary(message), do: message
   def format(message, color, name, opts) do
     message
-    |> inspect(pretty: true)
-    |> format(color, name, opts)
+    |> local_inspect(opts)
+    |> format(color, name)
   end
-  
-  @spec do_log_meta(name::binary, mode:: nil | atom)::binary
-  @spec do_log_meta(name::binary)::binary
-  defp do_log_meta(message, nil), do: do_log_meta(message)
-  defp do_log_meta("Elixir." <> name, mode), do: do_log_meta(name, mode)
-
-  defp do_log_meta(name, mode) do
-    "[#{name}:#{mode}]"
-  end
-  
-  defp do_log_meta("Elixir." <> name), do: do_log_meta(name)
-  defp do_log_meta(name) do
-    "[#{name}]"
-  end
-  
+ 
   @spec do_color(message::any, color::atom) :: binary
   defp do_color(message, color) when not is_binary(message) do
     do_color(inspect(message, pretty: true), color)
@@ -54,16 +93,6 @@ defmodule Painter do
     chroma = do_ansi(color)
     reset = reset()
     chroma <> message <> reset
-  end
-  
-  @spec do_label(message::any, label::nil | binary)::message::any
-  def do_label(message, nil), do: message
-  def do_label(message, label) when is_binary(message) do
-    "#{label}: " <> message
-  end
-
-  def do_label(message, label) do
-    do_label(inspect(message), label)
   end
 
   @spec get_filter(word::binary|Regex.t, color::atom|nil) :: (binary->binary)
@@ -88,8 +117,10 @@ defmodule Painter do
   
   def ident, do: fn x -> x end
   @type ident_of(x_type) :: (x::x_type->x::x_type)
+  
   @spec prep_filter(nil) :: ident_of(binary)
   @spec prep_filter(list) :: (binary->binary)
+  
   def prep_filter(nil), do: ident()
   def prep_filter(maybe_mark_list) do
     filters = maybe_mark_list
@@ -104,40 +135,71 @@ defmodule Painter do
       Enum.reduce(filters, str, fn current_fun, str_so_far -> current_fun.(str_so_far) end)
     end
   end
-
+  
+  def label_for([]), do: ""
+  def label_for(opts) do
+    case Keyword.get(opts, :label) do
+      nil -> ""
+      label -> "#{label}: "
+    end
+  end
+  
+  def mode_for([]), do: ""
+  def mode_for(opts) do
+    case Keyword.get(opts, :mode) do
+      nil -> ""
+      mode -> ":#{mode}"
+    end
+  end
+  
   @spec do_log(name::binary, color::atom, message::any, opts::list) :: message::any
   def do_log(name, color, message, opts \\ []) do
-    maybe_label = Keyword.get(opts, :label)
-    maybe_mode = Keyword.get(opts, :mode)
-    maybe_reverse = Keyword.get(opts, :reverse)
-    maybe_mark_list = Keyword.get(opts, :mark_list)
     prefix = Keyword.get(opts, :prefix, "")
-    IO.inspect(prefix, label: "is nil? #{prefix === nil}")
+    suffix = Keyword.get(opts, :suffix, "")
+    device = Keyword.get(opts, :device, :stdio)
+    
+    label = label_for(opts)
+    mode = mode_for(opts)
+    
+    log_name = String.trim_leading(name, "Elixir.")
+    should_reverse? = Keyword.get(opts, :reverse)
+    header = reverse("[#{log_name}#{mode}]", should_reverse?)
+
+    text = Painter.format(message, color, header, opts)
+    
+    maybe_mark_list = Keyword.get(opts, :mark_list)
     mark_filter = prep_filter(maybe_mark_list)
-
-    header =
-      name
-      |> do_log_meta(maybe_mode)
-      |> reverse(maybe_reverse)
-
-    message
-    |> do_label(maybe_label)
-    |> Painter.format(color, header, opts)
-    |> mark_filter.()
-    |> IO.puts()
+    highlighted_text = mark_filter.(text)
+    
+    final = "#{do_color(header, color)} #{label}#{prefix}#{highlighted_text}#{suffix}"
+    IO.puts(device, final)
 
     message
   end
 
   @spec write(mod::module, message::any, opts::Keyword.t) :: message::any
-  def write(mod, message, opts \\ []) do
-    new_opts = Keyword.merge(opts, mode: :write)
+  def write(mod, message, path \\ :default_day, opts \\ []) do
+    result = 
+      case path do
+        :default_day -> File.open(default_day(), [:append])
+        _ -> File.open(path, [:append])
+      end
+      
+    new_opts = 
+      case result do
+        {:ok, device} -> Keyword.merge(opts, device: device)
+        _ -> opts
+      end
+
     log(mod, message, new_opts)
   end
   
-  def value(mod, message, opts \\ []) do
-    log(mod, __ENV__, opts)
-    log(mod, message, opts)
+  def default_day do
+    date = Date.utc_today() 
+    |> to_string() 
+    |> String.replace("-", "_")
+    
+    date <> ".log"
   end
 
   @spec debug(mod::module, message::any, opts::Keyword.t) :: message::any
@@ -160,7 +222,7 @@ defmodule Painter do
       opts
       |> Keyword.merge(mode: :mark)
       |> Keyword.merge(reverse: true)
-
+      
     log(mod, message, new_opts)
   end
 
@@ -191,51 +253,79 @@ defmodule Painter do
   def paint_color, do: :light_blue
   def paint_name, do: __MODULE__
 
-
-  def parse({name, _, nil} = value, context) when is_atom(name) do
-    type = "Variable"
-    
-  end
-  def parse({:&, _, arguments} = value, context) do
-    type = "Reference"
-    {mod, {function_name, arity}, line_number} = context
-    from = "#{mod}.#{function_name}/#{arity}"
-    "\n#{type}"
-  end
-  def parse({local_call, _, arguments} = value, context) when is_atom(local_call) do
-    type = "Local call"
-
-    from = "#{}"
-
-  end
-  def parse({remote_call, _, arguments} = value, context) when is_tuple(remote_call) do
-    type = "Remote call"
-
-    from = "#{}"
-
-  end
-  def parse(value, context) do
-    type = "Literal"
-
-    from = "#{}"
-
+  def parse({name, _, nil} = value) when is_atom(name) do
+    {"variable", value}
   end
   
-  def context(env) do
-    {env.module, env.function, env.line}
+  def parse({:&, _, _arguments} = value) do
+    {"reference", value}
+  end
+
+  def parse({local_call, _, _arguments} = value) when is_atom(local_call) do
+    {"local call", value}
+  end
+  
+  def parse({remote_call, _, _arguments} = value) when is_tuple(remote_call) do
+    {"remote call", value}
+  end
+  
+  def parse(value) do
+    {"literal", value}
+  end
+  
+  def across(width, how \\ :evenly, char \\ "-") do
+    times = 
+      if how === :evenly do
+        div(width, String.length(char))
+      else
+        width
+      end
+    
+    String.duplicate(char, times)
+  end
+  
+  def pretty(env, {type, value}, indent \\ 2) do
+    import Inspect.Algebra
+    br = break("\n")
+    
+    file = Path.relative_to(env.file, System.cwd())
+    {mod, {function_name, arity}, line_number} = {env.module, env.function, env.line}
+     
+    "Elixir." <> name = Atom.to_string(mod)
+    from_doc = concat([name, ".", to_string(function_name), "/", to_string(arity)])
+
+    br
+    |> concat("├── ")
+    |> concat(type)
+    |> concat(": ")
+    |> concat(Macro.to_string(value))
+    |> concat(br)
+    |> concat("└── ")
+    |> concat(from_doc)
+    |> concat(" - #{file}:#{line_number}")
+    |> nest(indent)
+    |> group()    
+    |> format(0)
+    |> IO.iodata_to_binary()
   end
 
   defmodule Defaults do
     defmacro __using__(_) do
       caller = __CALLER__.module
-
       quote location: :keep do
-        defmacro value(message) do  
-          current_context = Painter.parse(message, Painter.context(__CALLER__))
+        defmacro detail(message, opts \\ []) do
+          indent = 2
+          footer = Painter.pretty(__CALLER__, Painter.parse(message), indent)
           quote do
+            line = "\n" <> do_ansi(paint_color()) <> Painter.across(80) <> do_ansi(:reset) <> "\n"
+            prefix = "\n" <> String.duplicate(" ", unquote(indent))
+            suffix = unquote(footer) <> line
+            new_opts = Keyword.merge([suffix: suffix, prefix: prefix], unquote(opts))
+            log(unquote(message), new_opts)
           end
         end
         
+        def write(message, path \\ :default_day, opts \\ []), do: Painter.write(unquote(caller), message, path, opts)
         def log(message, opts \\ []), do: Painter.log(unquote(caller), message, opts)
         def debug(message, opts \\ []), do: Painter.debug(unquote(caller), message, opts)
         def mark(message, opts \\ []), do: Painter.mark(unquote(caller), message, opts)
@@ -283,4 +373,3 @@ defmodule Painter do
     end
   end
 end
-

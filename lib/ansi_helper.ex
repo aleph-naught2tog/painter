@@ -16,6 +16,7 @@ defmodule AnsiHelper do
   def reset(), do: do_ansi(:reset)
 
   @spec do_ansi(color::atom) :: binary
+  def do_ansi(nil), do: ""
   def do_ansi(color) do
     if ANSI.enabled? do
       apply(ANSI, color, [])

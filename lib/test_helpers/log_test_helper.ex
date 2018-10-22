@@ -24,6 +24,7 @@ defmodule TestHelpers.LogHelper do
   @dialyzer {:nowarn_function, assert_log: 1}
   @spec assert_log(log_function::fun) :: boolean
   def assert_log(log_function) do
+    log_function.()
     assert capture_io(log_function)
   end
 

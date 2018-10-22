@@ -48,8 +48,10 @@ defmodule PainterTest do
     end
  
     test "should allow weird lists" do
+      
       message = "apples are tasty"
       <<"apples", " ", "are", rest::binary>> = message
+      
       rules = [{:red, "apples"}, "are"]
       are = mark_up("are")
       apples = mark_up("apples", :red)
