@@ -8,25 +8,34 @@ end
 
 defmodule Hooks do
   def teeniest_c do
-    teeniest_c = ~S"""
+    ~S"""
     #include <unistd.h>
     #include <stdio.h>
     
     int main(void) 
-    {
-      puts("hello, world");
+    {      
+      if (isatty(STDOUT_FILENO)) 
+      {
+        puts("true");
+      } 
+      else 
+      {
+        puts("false");
+      }
       
       return 0;
     }
     """
   end
   
-  def __before_compile__(_) do
-    IO.puts("compiling")
+  defmacro __before_compile__(_) do
     tmp_dir = System.tmp_dir()
     filename = tmp_dir <> "isatty.c"
     binname = "isatty"
     binpath = tmp_dir <> binname
+    
+    File.rm(filename)
+    File.rm(binpath)
     
     unless File.exists?(binpath) do
       result = File.open(filename, [:write], fn file -> 
@@ -36,16 +45,17 @@ defmodule Hooks do
       end)
       
       case result do
-        {:ok, {_, 0}} -> 
-          System.cmd(binpath, [])
-          |> IO.inspect()
+        {:ok, {_, 0}} -> System.cmd(binpath, [])
         _ -> IO.inspect(result, label: "FAIL")
       end
     end
-    
-    quote do
-      def isatty(_file) do
 
+    quote location: :keep do
+      def isatty() do
+        case System.cmd(unquote(binpath), []) do
+          {:ok, {isatty?, 0}} -> String.to_existing_atom(isatty?)
+          _ -> false
+        end
       end
     end
   end
@@ -62,10 +72,6 @@ defmodule Painter do
   @moduledoc """
   Documentation for Painter.
   """
-
-  def isatty(_file \\ "") do
-    System.cmd("./a.out", [])
-  end
 
   @spec local_inspect(message::any, inspect_opts:: Keyword.t) :: binary
   def local_inspect(message, inspect_opts \\ []) do
@@ -178,20 +184,19 @@ defmodule Painter do
   end
 
   @spec write(mod::module, message::any, opts::Keyword.t) :: message::any
-  def write(mod, message, path \\ :default_day, opts \\ []) do
-    result = 
-      case path do
-        :default_day -> File.open(default_day(), [:append])
-        _ -> File.open(path, [:append])
-      end
-      
-    new_opts = 
-      case result do
-        {:ok, device} -> Keyword.merge(opts, device: device)
-        _ -> opts
-      end
-
-    log(mod, message, new_opts)
+  def write(mod, message, path \\ :default_day, write_opts \\ [:append], opts \\ []) do
+    filepath = if(path === :default_day, do: default_day(), else: path)
+    
+    File.open(filepath, write_opts, fn 
+      {:ok, device} -> 
+        new_opts = Keyword.merge(opts, device: device)
+        spawn(fn -> 
+          # change stdio
+          Process.group_leader(self(), device)
+          log(mod, message, new_opts)
+        end)
+      _ -> message
+    end)
   end
   
   def default_day do
