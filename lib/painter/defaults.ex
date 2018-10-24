@@ -4,16 +4,14 @@ defmodule Painter.Defaults do
 
     quote location: :keep do
       defmacro detail(message, opts \\ []) do
-        import Printer, only: [parse: 1, across: 1]
+        import Printer, only: [parse: 1, line: 2, with_line_break: 2]
         import Painter, only: [pretty: 3]
-        import AnsiHelper, only: [do_ansi: 1]
         
         indent = 2
         footer = pretty(__CALLER__, parse(message), indent)
         quote do
-          line = "\n" <> do_ansi(paint_color()) <> across(80) <> do_ansi(:reset) <> "\n"
-          prefix = "\n" <> String.duplicate(" ", unquote(indent))
-          suffix = unquote(footer) <> line
+          prefix = with_line_break(String.duplicate(" ", unquote(indent)), :before)
+          suffix = unquote(footer) <> line(paint_color(), 80)
           new_opts = Keyword.merge([suffix: suffix, prefix: prefix], unquote(opts))
           log(unquote(message), new_opts)
         end
