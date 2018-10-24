@@ -140,7 +140,7 @@ defmodule Painter do
 
     File.open(filepath, write_opts, fn
       {:ok, device} ->
-        IO.puts("device opened")
+        IO.warn("device opened")
         new_opts = Keyword.merge(opts, device: device)
 
         spawn(fn ->
@@ -149,7 +149,7 @@ defmodule Painter do
           log(mod, message, new_opts)
         end)
 
-      msg -> IO.inspect(msg)
+      msg -> error(mod, msg, opts)
     end)
   end
 
@@ -213,37 +213,6 @@ defmodule Painter do
   def paint_color, do: :light_blue
   def paint_name, do: Atom.to_string(__MODULE__)
 
-  def parse({name, _, nil} = value) when is_atom(name) do
-    {"variable", value}
-  end
-
-  def parse({:&, _, _arguments} = value) do
-    {"reference", value}
-  end
-
-  def parse({local_call, _, _arguments} = value) when is_atom(local_call) do
-    {"local call", value}
-  end
-
-  def parse({remote_call, _, _arguments} = value) when is_tuple(remote_call) do
-    {"remote call", value}
-  end
-
-  def parse(value) do
-    {"literal", value}
-  end
-
-  def across(width, how \\ :evenly, char \\ "-") do
-    times =
-      if how === :evenly do
-        div(width, String.length(char))
-      else
-        width
-      end
-
-    String.duplicate(char, times)
-  end
-
   def pretty(env, {type, value}, indent \\ 2) do
     import Inspect.Algebra
     br = break("\n")
@@ -267,20 +236,6 @@ defmodule Painter do
     |> group()
     |> format(0)
     |> IO.iodata_to_binary()
-  end
-
-  defmacro detail(color, message, opts \\ []) do
-    parsed_message = parse(message)
-    
-    quote location: :keep do
-      indent = 2
-      prefix = "\n" <> String.duplicate(" ", indent)
-      line = "\n" <> do_ansi(unquote(color)) <> String.duplicate("-", 80) <> do_ansi(:reset) <> "\n"
-      footer = pretty(__CALLER__, unquote(parsed_message), indent)
-      suffix = footer <> line
-      new_opts = Keyword.merge([suffix: suffix, prefix: prefix], unquote(opts))
-      log(unquote(message), new_opts)
-    end
   end
 
   defmacro __using__(init_opts \\ [])
