@@ -1,10 +1,10 @@
 defmodule Printer do
   import AnsiHelper, only: [do_ansi: 1]
-  
+
   def line(color, width \\ 80, char \\ "-") do
     "\n" <> do_ansi(color) <> across(width, char) <> do_ansi(:reset) <> "\n"
   end
-  
+
   def with_line_break(string, where \\ :before) do
     case where do
       :before -> "\n" <> string
@@ -22,7 +22,7 @@ defmodule Printer do
 
     String.duplicate(char, times)
   end
-  
+
   def parse({name, _, nil} = value) when is_atom(name) do
     {"variable", value}
   end
@@ -43,3 +43,4 @@ defmodule Printer do
     {"literal", value}
   end
 end
+

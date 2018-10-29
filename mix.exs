@@ -15,7 +15,7 @@ defmodule Painter.MixProject do
           :unknown,
           :unmatched_returns,
           :error_handling
-          ],
+        ],
         ignore_warnings: ".dialyzer_ignore.exs"
       ]
     ]
@@ -23,7 +23,9 @@ defmodule Painter.MixProject do
 
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger],
+      mod: {Painter, []},
+      env: [ansi_enabled: IO.ANSI.enabled?]
     ]
   end
 
@@ -32,10 +34,10 @@ defmodule Painter.MixProject do
       {
         :credo,
         "~> 0.10.0",
-        only: [:dev, :test],
-        runtime: false
+        only: [:dev, :test], runtime: false
       },
       {:dialyxir, "~> 1.0.0-rc.3", only: [:dev], runtime: false}
     ]
   end
 end
+

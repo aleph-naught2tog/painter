@@ -1,10 +1,18 @@
 defmodule Painter do
   import AnsiHelper
+  import Painter.Opts
 
-  @before_compile Utilities.Hooks
+  use Application
+  
+  @impl true
+  def start(_,_) do
+    {:ok, self()}
+  end
 
   @callback paint_color() :: atom
   @callback paint_name() :: binary
+  @callback init_opts() :: Painter.Opts
+  @callback init_opts(atom | binary) :: any
 
   @moduledoc """
   Documentation for Painter.
@@ -12,21 +20,20 @@ defmodule Painter do
 
   @spec local_inspect(message :: any, inspect_opts :: Keyword.t()) :: binary
   def local_inspect(message, inspect_opts \\ []) do
-    default_opts = [pretty: true]
-    inspect(message, Keyword.merge(default_opts, inspect_opts))
+    inspect(message, Keyword.merge(default_opts(), inspect_opts))
   end
 
-  @spec format(message :: any, color :: atom, name :: binary, opts :: Keyword.t()) ::
+  @spec format(message :: any, name :: binary, opts :: Keyword.t()) ::
           message :: any
-  def format(message, color, name, opts \\ [])
-  def format("", _, _, _), do: "<EMPTY_STRING>"
-  def format(<<0>>, _, _, _), do: "<NULL_BYTE>"
-  def format(message, _, _, _) when is_binary(message), do: message
+  def format(message, name, opts \\ [])
+  def format("", _, _), do: "<EMPTY_STRING>"
+  def format(<<0>>, _, _), do: "<NULL_BYTE>"
+  def format(message, _, _) when is_binary(message), do: message
 
-  def format(message, color, name, opts) do
+  def format(message, name, opts) do
     message
     |> local_inspect(opts)
-    |> format(color, name)
+    |> format(name)
   end
 
   @spec do_color(message :: any, color :: atom) :: binary
@@ -104,7 +111,33 @@ defmodule Painter do
   end
 
   @spec do_log(name :: binary, color :: atom, message :: any, opts :: list) :: message :: any
-  def do_log(name, color, message, opts \\ []) do
+  def do_log(name, color, message, opts \\ []) 
+  def do_log(name, :none, message, opts) do
+    prefix = Keyword.get(opts, :prefix, "")
+    suffix = Keyword.get(opts, :suffix, "")
+    device = Keyword.get(opts, :device, :stdio)
+
+    label = label_for(opts)
+    mode = mode_for(opts)
+
+    log_name =
+      if String.starts_with?(name, "Elixir.") do
+        String.trim_leading(name, "Elixir.")
+      else
+        name
+      end
+
+    header = "[#{log_name}#{mode}]"
+
+    text = Painter.format(message, header, opts)
+
+    final = "#{header} #{label}#{prefix}#{text}#{suffix}"
+    IO.puts(device, final)
+
+    message
+  end
+  
+  def do_log(name, color, message, opts) do
     prefix = Keyword.get(opts, :prefix, "")
     suffix = Keyword.get(opts, :suffix, "")
     device = Keyword.get(opts, :device, :stdio)
@@ -122,7 +155,7 @@ defmodule Painter do
     should_reverse? = Keyword.get(opts, :reverse)
     header = reverse("[#{log_name}#{mode}]", should_reverse?)
 
-    text = Painter.format(message, color, header, opts)
+    text = Painter.format(message, header, opts)
 
     maybe_mark_list = Keyword.get(opts, :mark_list)
     mark_filter = prep_filter(maybe_mark_list)
@@ -137,20 +170,31 @@ defmodule Painter do
   @spec write(mod :: module, message :: any, opts :: Keyword.t()) :: message :: any
   def write(mod, message, path \\ :default_day, write_opts \\ [:append], opts \\ []) do
     filepath = if(path === :default_day, do: default_day(), else: path)
+    write_with_color = apply(mod, :init_opts, [:write_with_color])
+    
+    opts = if write_with_color do
+      opts
+    else
+      Keyword.merge(opts, color_override: :none)
+    end
 
     File.open(filepath, write_opts, fn
-      {:ok, device} ->
-        IO.warn("device opened")
-        new_opts = Keyword.merge(opts, device: device)
-
+      device ->
+        opts = Keyword.merge(opts, device: device)
         spawn(fn ->
           # change stdio
           Process.group_leader(self(), device)
-          log(mod, message, new_opts)
+          log(mod, message, opts)
         end)
-
-      msg -> error(mod, msg, opts)
+        
+        loop(mod)
     end)
+  end
+  
+  def loop(mod) do
+    receive do
+      message -> log(mod, message)
+    end
   end
 
   def default_day do
@@ -170,7 +214,7 @@ defmodule Painter do
 
   @spec log(mod :: module, message :: any, opts :: Keyword.t()) :: message :: any
   def log(mod, message, opts \\ []) do
-    color = mod_color(mod)
+    color = Keyword.get(opts, :color_override, mod_color(mod))
     name = mod_name(mod)
 
     do_log(name, color, message, opts)
@@ -193,7 +237,7 @@ defmodule Painter do
       |> Keyword.merge(mode: :error)
       |> Keyword.merge(reverse: true)
 
-    log(mod, message, new_opts)
+    do_log(mod_name(mod), :red, message, new_opts)
   end
 
   @spec mod_color(mod :: module) :: atom
@@ -234,7 +278,7 @@ defmodule Painter do
     |> concat(" - #{file}:#{line_number}")
     |> nest(indent)
     |> group()
-    |> format(0)
+    |> Inspect.Algebra.format(0)
     |> IO.iodata_to_binary()
   end
 
@@ -254,6 +298,15 @@ defmodule Painter do
 
     quote do
       @behaviour Painter
+      
+      @impl true
+      def init_opts(), do: unquote(Macro.escape(init_opts))
+      
+      @impl true
+      def init_opts(key) when is_binary(key), do: init_opts(String.to_atom(key))
+      def init_opts(key) when is_atom(key) do
+        Map.get(init_opts(), key, :no_such_key)
+      end
 
       unquote(
         if with_defaults do

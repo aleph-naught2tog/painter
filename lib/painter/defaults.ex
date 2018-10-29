@@ -6,9 +6,10 @@ defmodule Painter.Defaults do
       defmacro detail(message, opts \\ []) do
         import Printer, only: [parse: 1, line: 2, with_line_break: 2]
         import Painter, only: [pretty: 3]
-        
+
         indent = 2
         footer = pretty(__CALLER__, parse(message), indent)
+
         quote do
           prefix = with_line_break(String.duplicate(" ", unquote(indent)), :before)
           suffix = unquote(footer) <> line(paint_color(), 80)
@@ -16,7 +17,7 @@ defmodule Painter.Defaults do
           log(unquote(message), new_opts)
         end
       end
-      
+
       def write(message, path \\ :default_day, opts \\ [:append]),
         do: Painter.write(unquote(caller), message, path, opts)
 
@@ -27,3 +28,4 @@ defmodule Painter.Defaults do
     end
   end
 end
+
