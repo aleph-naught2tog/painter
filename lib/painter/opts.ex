@@ -5,7 +5,7 @@ defmodule Painter.Opts do
             width: 80,
             write_with_color: false
 
-  def default_opts() do
+  def default_opts(false) do
     [
       pretty: true,
       # structs: true,
@@ -15,9 +15,12 @@ defmodule Painter.Opts do
       # printable_limit: 4096,
       # width: 80,
       # base: :decimal,
-      safe: true,
-      syntax_colors: syntax_colors()
+      safe: true
     ]
+  end
+  
+  def default_opts(true) do
+    Keyword.merge(default_opts(false), [syntax_colors: syntax_colors()])
   end
 
   def syntax_colors() do

@@ -113,6 +113,46 @@ defmodule PainterTest do
       assert has_no_ansi(&test_log/0)
       Application.put_env(:painter, :ansi_enabled, value)
     end
+    
+    test "app env should win" do
+      value = Application.get_env(:painter, :ansi_enabled)
+      e = Application.get_env(:elixir, :ansi_enabled)
+      
+      message = "beepper bopbop"
+      
+      Application.put_env(:painter, :ansi_enabled, nil)
+      Application.put_env(:elixir, :ansi_enabled, true)
+      result = capture_io(fn -> Tester.log(message) end)
+      assert has_any_ansi(result) 
+      
+      Application.put_env(:painter, :ansi_enabled, true)
+      result = capture_io(fn -> Tester.log(message) end)
+      assert has_any_ansi(result) 
+      
+      Application.put_env(:elixir, :ansi_enabled, false)
+      result = capture_io(fn -> Tester.log(message) end)
+      assert has_any_ansi(result) 
+      
+      Application.put_env(:painter, :ansi_enabled, false)
+      result = capture_io(fn -> Tester.log(message) end)
+      assert has_no_ansi(result) 
+      
+      Application.put_env(:elixir, :ansi_enabled, true)
+      result = capture_io(fn -> Tester.log(message) end)
+      assert has_no_ansi(result) 
+     
+      Application.put_env(:painter, :ansi_enabled, value)
+      Application.put_env(:elixir, :ansi_enabled, e)
+    end
+   
+    test "should allow forcing" do
+      value = Application.get_env(:painter, :ansi_enabled)
+      Application.put_env(:painter, :ansi_enabled, false)
+      message = "beepper bopbop"
+      result = capture_io(fn -> Tester.log(message, force: true) end)
+      assert has_any_ansi(result)
+      Application.put_env(:painter, :ansi_enabled, value)
+    end
   end
 
   describe "Debug" do

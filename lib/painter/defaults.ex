@@ -18,9 +18,7 @@ defmodule Painter.Defaults do
         end
       end
 
-      def write(message, path \\ :default_day, opts \\ [:append]),
-        do: Painter.write(unquote(caller), message, path, opts)
-
+      def write(message, opts \\ []), do: Painter.write(unquote(caller), message, opts)
       def log(message, opts \\ []), do: Painter.log(unquote(caller), message, opts)
       def debug(message, opts \\ []), do: Painter.debug(unquote(caller), message, opts)
       def mark(message, opts \\ []), do: Painter.mark(unquote(caller), message, opts)

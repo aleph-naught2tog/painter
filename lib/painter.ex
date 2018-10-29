@@ -3,9 +3,19 @@ defmodule Painter do
   import Painter.Opts
 
   use Application
-  
+
   @impl true
-  def start(_,_) do
+  def start(_, _) do
+    unless IO.ANSI.enabled?() do
+      IO.puts("Your current settings show that your device is *not* ANSI-enabled.")
+
+      if Application.get_env(:painter, :ansi_enabled) do
+        IO.puts("...but your config says to enable ANSI.")
+        IO.puts("We'll enabled ANSI for Painter, but nothing else.")
+        IO.puts("(If you have questions, check out the README)")
+      end
+    end
+
     {:ok, self()}
   end
 
@@ -20,11 +30,20 @@ defmodule Painter do
 
   @spec local_inspect(message :: any, inspect_opts :: Keyword.t()) :: binary
   def local_inspect(message, inspect_opts \\ []) do
-    inspect(message, Keyword.merge(default_opts(), inspect_opts))
+    defaults = default_opts(Keyword.get(inspect_opts, :should_color, should_color?()))
+    opts = Keyword.merge(defaults, inspect_opts)
+    inspect(message, opts)
   end
 
-  @spec format(message :: any, name :: binary, opts :: Keyword.t()) ::
-          message :: any
+  def should_color?() do
+    case Application.get_env(:painter, :ansi_enabled) do
+      nil -> IO.ANSI.enabled?()
+      true -> true
+      false -> false
+    end
+  end
+
+  @spec format(message :: any, name :: binary, opts :: Keyword.t()) :: message :: any
   def format(message, name, opts \\ [])
   def format("", _, _), do: "<EMPTY_STRING>"
   def format(<<0>>, _, _), do: "<NULL_BYTE>"
@@ -38,7 +57,7 @@ defmodule Painter do
 
   @spec do_color(message :: any, color :: atom) :: binary
   defp do_color(message, color) when not is_binary(message) do
-    do_color(inspect(message, pretty: true), color)
+    do_color(local_inspect(message), color)
   end
 
   defp do_color(message, color) do
@@ -111,7 +130,8 @@ defmodule Painter do
   end
 
   @spec do_log(name :: binary, color :: atom, message :: any, opts :: list) :: message :: any
-  def do_log(name, color, message, opts \\ []) 
+  def do_log(name, color, message, opts \\ [])
+
   def do_log(name, :none, message, opts) do
     prefix = Keyword.get(opts, :prefix, "")
     suffix = Keyword.get(opts, :suffix, "")
@@ -136,7 +156,7 @@ defmodule Painter do
 
     message
   end
-  
+
   def do_log(name, color, message, opts) do
     prefix = Keyword.get(opts, :prefix, "")
     suffix = Keyword.get(opts, :suffix, "")
@@ -168,33 +188,25 @@ defmodule Painter do
   end
 
   @spec write(mod :: module, message :: any, opts :: Keyword.t()) :: message :: any
-  def write(mod, message, path \\ :default_day, write_opts \\ [:append], opts \\ []) do
-    filepath = if(path === :default_day, do: default_day(), else: path)
-    write_with_color = apply(mod, :init_opts, [:write_with_color])
-    
-    opts = if write_with_color do
-      opts
-    else
-      Keyword.merge(opts, color_override: :none)
-    end
+  def write(mod, message, opts \\ []) do
+    write_opts = Keyword.get(opts, :write_opts, [:append])
+    filepath = Keyword.get(opts, :path, default_day())
 
-    File.open(filepath, write_opts, fn
-      device ->
-        opts = Keyword.merge(opts, device: device)
-        spawn(fn ->
-          # change stdio
-          Process.group_leader(self(), device)
-          log(mod, message, opts)
-        end)
-        
-        loop(mod)
-    end)
-  end
-  
-  def loop(mod) do
-    receive do
-      message -> log(mod, message)
-    end
+    write_with_color = apply(mod, :init_opts, [:write_with_color])
+
+    opts =
+      if write_with_color or Keyword.get(opts, :force) do
+        opts
+      else
+        opts
+        |> Keyword.put_new(:should_color, false)
+        |> Keyword.put(:color_override, :none)
+      end
+
+    {:ok, device} = File.open(filepath, write_opts)
+    opts = Keyword.merge(opts, device: device)
+    log(mod, message, opts)
+    File.close(device)
   end
 
   def default_day do
@@ -217,7 +229,12 @@ defmodule Painter do
     color = Keyword.get(opts, :color_override, mod_color(mod))
     name = mod_name(mod)
 
-    do_log(name, color, message, opts)
+    cond do
+      Keyword.get(opts, :force) -> do_log(name, color, message, opts)
+      Keyword.get(opts, :no_color) -> do_log(name, :none, message, opts)
+      should_color?() -> do_log(name, color, message, opts)
+      true -> do_log(name, :none, message, opts)
+    end
   end
 
   @spec mark(mod :: module, message :: any, opts :: Keyword.t()) :: message :: any
@@ -283,6 +300,7 @@ defmodule Painter do
   end
 
   defmacro __using__(init_opts \\ [])
+
   defmacro __using__(list_opts) do
     init_opts =
       unless Keyword.get(list_opts, :name) do
@@ -298,12 +316,13 @@ defmodule Painter do
 
     quote do
       @behaviour Painter
-      
+
       @impl true
       def init_opts(), do: unquote(Macro.escape(init_opts))
-      
+
       @impl true
       def init_opts(key) when is_binary(key), do: init_opts(String.to_atom(key))
+
       def init_opts(key) when is_atom(key) do
         Map.get(init_opts(), key, :no_such_key)
       end

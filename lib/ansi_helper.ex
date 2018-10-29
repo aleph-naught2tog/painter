@@ -20,11 +20,7 @@ defmodule AnsiHelper do
   def do_ansi(nil), do: ""
 
   def do_ansi(color) do
-    if Application.get_env(:painter, :ansi_enabled) do
-      apply(ANSI, color, [])
-    else
-      ""
-    end
+    apply(ANSI, color, [])
   end
 
   def colors do
