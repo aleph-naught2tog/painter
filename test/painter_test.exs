@@ -10,18 +10,6 @@ defmodule Tester do
   end
 end
 
-defmodule Skip do
-  defmacro skip_without_ansi do
-    unless IO.ANSI.enabled?() do
-      IO.puts("\n       <<< WARNING >>>")
-      IO.puts("ANSI is not enabled on this device.")
-      IO.puts(" Tests that require it will skip.")
-      IO.puts("       <<< -- -- -- >>>\n")
-      :skip
-    end
-  end
-end
-
 defmodule PainterTest do
   use ExUnit.Case
   doctest Painter, import: true
@@ -29,14 +17,17 @@ defmodule PainterTest do
   import ExUnit.CaptureIO
   import TestHelpers.ColorHelper
   import TestHelpers.LogHelper
-  
-  require Skip
-  import Skip
 
   import Tester
 
-  
   describe "highlighting" do
+    setup do
+      original = Application.get_env(:painter, :ansi_enabled)
+      Application.put_env(:painter, :ansi_enabled, true)
+      on_exit(make_ref(), fn -> Application.put_env(:painter, :ansi_enabled, original) end)
+      :ok
+    end
+    
     test "has only marked" do
       message = "apples are tasty"
       <<"apples", _rest::binary>> = message
@@ -46,10 +37,11 @@ defmodule PainterTest do
       result = capture_io(fn -> Tester.log(message, mark_list: rules) end)
       assert String.ends_with?(result, expected <> "\n")
     end
- 
+
     test "should allow weird lists" do
       message = "apples are tasty"
       <<"apples", " ", "are", rest::binary>> = message
+
       rules = [{:red, "apples"}, "are"]
       are = mark_up("are")
       apples = mark_up("apples", :red)
@@ -58,7 +50,7 @@ defmodule PainterTest do
       result = capture_io(fn -> Tester.log(message, mark_list: rules) end)
       assert String.ends_with?(result, expected <> "\n")
     end
-    
+
     test "should allow regexes" do
       message = "apples are tasty"
       <<"apples", " ", "are", rest::binary>> = message
@@ -70,7 +62,7 @@ defmodule PainterTest do
       result = capture_io(fn -> Tester.log(message, mark_list: rules) end)
       assert String.ends_with?(result, expected <> "\n")
     end
-    
+
     test "should highight more if found" do
       message = "apples are full of rippley goodness"
       <<"apples", " ", "are", _rest::binary>> = message
@@ -79,14 +71,12 @@ defmodule PainterTest do
       apples = mark_up("apples", :cyan)
       ripple = mark_up("ipple", :cyan)
 
-
       result = capture_io(fn -> Tester.log(message, mark_list: rules) end)
       assert result =~ apples
       assert result =~ ripple
       assert result =~ are
     end
-    
-    @tag skip_without_ansi()
+
     test "last should win" do
       message = "apples are full of rippley goodness"
       <<"apples", " ", "are", _rest::binary>> = message
@@ -102,34 +92,90 @@ defmodule PainterTest do
       assert result =~ are
       assert result =~ p
     end
-    
+
     def mark_up(word, color \\ :yellow) do
-      AnsiHelper.do_ansi(color)
-      <> AnsiHelper.do_ansi(:reverse)
-      <> word
-      <> AnsiHelper.do_ansi(:reset)
+      AnsiHelper.do_ansi(color) <>
+        AnsiHelper.do_ansi(:reverse) <> word <> AnsiHelper.do_ansi(:reset)
     end
   end
 
   describe "should not use ansi when not enabled" do
-    test "should not have ansi when not enabled" do
-      if IO.ANSI.enabled?() do
-        IO.puts("Warning, ansi is ENABLED, can't test not-enabled.")
-      else
-        assert has_no_ansi(&test_log/0)
-      end
+    test "should have ansi with no app settings" do
+      value = Application.get_env(:painter, :ansi_enabled)
+      Application.put_env(:painter, :ansi_enabled, true)
+      assert has_any_ansi(&test_log/0)
+      Application.put_env(:painter, :ansi_enabled, value)
+    end
+
+    test "should not have ansi if disabled" do
+      value = Application.get_env(:painter, :ansi_enabled)
+      Application.put_env(:painter, :ansi_enabled, false)
+      assert has_no_ansi(&test_log/0)
+      Application.put_env(:painter, :ansi_enabled, value)
+    end
+    
+    test "app env should win" do
+      value = Application.get_env(:painter, :ansi_enabled)
+      e = Application.get_env(:elixir, :ansi_enabled)
+      
+      message = "beepper bopbop"
+      
+      Application.put_env(:painter, :ansi_enabled, nil)
+      Application.put_env(:elixir, :ansi_enabled, true)
+      result = capture_io(fn -> Tester.log(message) end)
+      assert has_any_ansi(result) 
+      
+      Application.put_env(:painter, :ansi_enabled, true)
+      result = capture_io(fn -> Tester.log(message) end)
+      assert has_any_ansi(result) 
+      
+      Application.put_env(:elixir, :ansi_enabled, false)
+      result = capture_io(fn -> Tester.log(message) end)
+      assert has_any_ansi(result) 
+      
+      Application.put_env(:painter, :ansi_enabled, false)
+      result = capture_io(fn -> Tester.log(message) end)
+      assert has_no_ansi(result) 
+      
+      Application.put_env(:elixir, :ansi_enabled, true)
+      result = capture_io(fn -> Tester.log(message) end)
+      assert has_no_ansi(result) 
+     
+      Application.put_env(:painter, :ansi_enabled, value)
+      Application.put_env(:elixir, :ansi_enabled, e)
+    end
+   
+    test "should allow forcing" do
+      value = Application.get_env(:painter, :ansi_enabled)
+      Application.put_env(:painter, :ansi_enabled, false)
+      message = "beepper bopbop"
+      result = capture_io(fn -> Tester.log(message, force: true) end)
+      assert has_any_ansi(result)
+      Application.put_env(:painter, :ansi_enabled, value)
     end
   end
 
   describe "Debug" do
+    setup do
+      original = Application.get_env(:painter, :ansi_enabled)
+      Application.put_env(:painter, :ansi_enabled, true)
+      on_exit(make_ref(), fn -> Application.put_env(:painter, :ansi_enabled, original) end)
+      :ok
+    end
+    
     test "should log" do
       assert_log(&test_debug/0)
     end
   end
 
   describe "basic usage" do
+    setup do
+      original = Application.get_env(:painter, :ansi_enabled)
+      Application.put_env(:painter, :ansi_enabled, true)
+      on_exit(make_ref(), fn -> Application.put_env(:painter, :ansi_enabled, original) end)
+      :ok
+    end
 
-    @tag skip_without_ansi()
     test "should have ansi" do
       assert has_any_ansi(&test_log/0)
     end
@@ -154,8 +200,15 @@ defmodule PainterTest do
       assert_receive({:return, message})
     end
   end
-  
+
   describe "idempotency" do
+    setup do
+      original = Application.get_env(:painter, :ansi_enabled)
+      Application.put_env(:painter, :ansi_enabled, true)
+      on_exit(make_ref(), fn -> Application.put_env(:painter, :ansi_enabled, original) end)
+      :ok
+    end
+    
     test "should return message unchanged" do
       message = "hello world"
       assert_log_result(message, &test_log/0)
