@@ -10,9 +10,9 @@ defmodule Painter do
       IO.puts("Your current settings show that your device is *not* ANSI-enabled.")
 
       if Application.get_env(:painter, :ansi_enabled) do
-        IO.puts("...but your config says to enable ANSI.")
-        IO.puts("We'll enabled ANSI for Painter, but nothing else.")
-        IO.puts("(If you have questions, check out the README)")
+        IO.puts("\t...but your config says to enable ANSI.")
+        IO.puts("\n\tWe've enabled ANSI for Painter, but nothing else.")
+        IO.puts("\t(If you have questions, check out the README)")
       end
     end
 

@@ -25,7 +25,7 @@ defmodule Painter.MixProject do
     [
       extra_applications: [:logger],
       mod: {Painter, []},
-      env: [ansi_enabled: IO.ANSI.enabled?]
+      env: [ansi_enabled: IO.ANSI.enabled?()]
     ]
   end
 
