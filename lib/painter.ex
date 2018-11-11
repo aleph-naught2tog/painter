@@ -7,12 +7,12 @@ defmodule Painter do
   @impl true
   def start(_, _) do
     unless IO.ANSI.enabled?() do
-      IO.puts("Your current settings show that your device is *not* ANSI-enabled.")
+      IO.puts("(Painter) Your current settings show that your device is *not* ANSI-enabled.")
 
       if Application.get_env(:painter, :ansi_enabled) do
         IO.puts("\t...but your config says to enable ANSI.")
         IO.puts("\n\tWe've enabled ANSI for Painter, but nothing else.")
-        IO.puts("\t(If you have questions, check out the README)")
+        IO.puts("\t(If you have questions, check out the README.)\n")
       end
     end
 
@@ -45,14 +45,22 @@ defmodule Painter do
 
   @spec format(message :: any, name :: binary, opts :: Keyword.t()) :: message :: any
   def format(message, name, opts \\ [])
-  def format("", _, _), do: "<EMPTY_STRING>"
-  def format(<<0>>, _, _), do: "<NULL_BYTE>"
+  def format("", _, _), do: gray("<EMPTY_STRING>")
+  def format(<<0>>, _, _), do: gray("<NULL_BYTE>")
   def format(message, _, _) when is_binary(message), do: message
 
   def format(message, name, opts) do
     message
     |> local_inspect(opts)
     |> format(name)
+  end
+  
+  defp gray(message) do
+    if should_color?() do
+      do_color(message, [2,2,2])
+    else
+      message
+    end
   end
 
   @spec do_color(message :: any, color :: atom) :: binary
@@ -252,7 +260,6 @@ defmodule Painter do
     new_opts =
       opts
       |> Keyword.merge(mode: :error)
-      |> Keyword.merge(reverse: true)
 
     do_log(mod_name(mod), :red, message, new_opts)
   end
@@ -298,9 +305,24 @@ defmodule Painter do
     |> Inspect.Algebra.format(0)
     |> IO.iodata_to_binary()
   end
+  
+  def do_warn(message) do
+    if should_color?() do
+      IO.puts(:stderr, do_color(message, :yellow))
+    else
+      IO.puts(:stderr, message)
+    end
+  end
+  
+  def do_error(message) do
+    if should_color?() do
+      IO.puts(:stderr, do_color(message, :red))
+    else
+      IO.puts(:stderr, message)
+    end
+  end
 
   defmacro __using__(init_opts \\ [])
-
   defmacro __using__(list_opts) do
     init_opts =
       unless Keyword.get(list_opts, :name) do
@@ -317,6 +339,8 @@ defmodule Painter do
     quote do
       @behaviour Painter
 
+      import Painter, only: [do_warn: 1, do_error: 1]
+      
       @impl true
       def init_opts(), do: unquote(Macro.escape(init_opts))
 

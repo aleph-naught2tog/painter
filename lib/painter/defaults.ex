@@ -4,11 +4,11 @@ defmodule Painter.Defaults do
 
     quote location: :keep do
       defmacro detail(message, opts \\ []) do
-        import Printer, only: [parse: 1, line: 2, with_line_break: 2]
+        import Printer, only: [line: 2, with_line_break: 2]
         import Painter, only: [pretty: 3]
 
         indent = 2
-        footer = pretty(__CALLER__, parse(message), indent)
+        footer = pretty(__CALLER__, Printer.parse(message), indent)
 
         quote do
           prefix = with_line_break(String.duplicate(" ", unquote(indent)), :before)

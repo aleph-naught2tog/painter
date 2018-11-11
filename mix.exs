@@ -36,7 +36,8 @@ defmodule Painter.MixProject do
         "~> 0.10.0",
         only: [:dev, :test], runtime: false
       },
-      {:dialyxir, "~> 1.0.0-rc.3", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.0.0-rc.3", only: [:dev], runtime: false},
+      {:ansi_helper, path: "../ansi_helper"}
     ]
   end
 end
