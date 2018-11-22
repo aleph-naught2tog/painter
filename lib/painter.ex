@@ -21,8 +21,13 @@ defmodule Painter do
 
   @callback paint_color() :: atom
   @callback paint_name() :: binary
-  @callback init_opts() :: Painter.Opts
-  @callback init_opts(atom | binary) :: any
+  @callback init_opts() :: %Painter.Opts{
+              :color => atom,
+              :name => binary,
+              :width => integer,
+              :with_defaults => boolean,
+              :write_with_color => boolean
+            }
 
   @moduledoc """
   Documentation for Painter.
@@ -54,10 +59,10 @@ defmodule Painter do
     |> local_inspect(opts)
     |> format(name)
   end
-  
+
   defp gray(message) do
     if should_color?() do
-      do_color(message, [2,2,2])
+      do_color(message, [2, 2, 2])
     else
       message
     end
@@ -155,6 +160,12 @@ defmodule Painter do
         name
       end
 
+    other_message = 
+      IO.ANSI.blue() 
+      <> "---#{name} is #{Module.open?(name)}---" 
+      <> IO.ANSI.reset()
+    raise other_message
+    IO.puts(:stderr, other_message)
     header = "[#{log_name}#{mode}]"
 
     text = Painter.format(message, header, opts)
@@ -305,7 +316,7 @@ defmodule Painter do
     |> Inspect.Algebra.format(0)
     |> IO.iodata_to_binary()
   end
-  
+
   def do_warn(message) do
     if should_color?() do
       IO.puts(:stderr, do_color(message, :yellow))
@@ -313,7 +324,7 @@ defmodule Painter do
       IO.puts(:stderr, message)
     end
   end
-  
+
   def do_error(message) do
     if should_color?() do
       IO.puts(:stderr, do_color(message, :red))
@@ -323,11 +334,12 @@ defmodule Painter do
   end
 
   defmacro __using__(init_opts \\ [])
+
   defmacro __using__(list_opts) do
     init_opts =
       unless Keyword.get(list_opts, :name) do
         temp_opts = struct(Painter.Opts, list_opts)
-        %{temp_opts | name: Atom.to_string(__CALLER__.module)}
+        %Painter.Opts{temp_opts | name: Atom.to_string(__CALLER__.module)}
       else
         struct(Painter.Opts, list_opts)
       end
@@ -340,16 +352,9 @@ defmodule Painter do
       @behaviour Painter
 
       import Painter, only: [do_warn: 1, do_error: 1]
-      
+
       @impl true
       def init_opts(), do: unquote(Macro.escape(init_opts))
-
-      @impl true
-      def init_opts(key) when is_binary(key), do: init_opts(String.to_atom(key))
-
-      def init_opts(key) when is_atom(key) do
-        Map.get(init_opts(), key, :no_such_key)
-      end
 
       unquote(
         if with_defaults do
