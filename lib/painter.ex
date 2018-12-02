@@ -5,7 +5,7 @@ defmodule Painter do
   use Application
 
   @impl true
-  def start(_, _) do
+  def start(_type, _args) do 
     unless IO.ANSI.enabled?() do
       IO.puts("(Painter) Your current settings show that your device is *not* ANSI-enabled.")
 
@@ -142,6 +142,14 @@ defmodule Painter do
     end
   end
 
+  defp name_for(name) do
+    if String.starts_with?(name, "Elixir.") do
+      String.trim_leading(name, "Elixir.")
+    else
+      name
+    end
+  end
+
   @spec do_log(name :: binary, color :: atom, message :: any, opts :: list) :: message :: any
   def do_log(name, color, message, opts \\ [])
 
@@ -152,20 +160,8 @@ defmodule Painter do
 
     label = label_for(opts)
     mode = mode_for(opts)
+    log_name = name_for(name)
 
-    log_name =
-      if String.starts_with?(name, "Elixir.") do
-        String.trim_leading(name, "Elixir.")
-      else
-        name
-      end
-
-    other_message = 
-      IO.ANSI.blue() 
-      <> "---#{name} is #{Module.open?(name)}---" 
-      <> IO.ANSI.reset()
-    raise other_message
-    IO.puts(:stderr, other_message)
     header = "[#{log_name}#{mode}]"
 
     text = Painter.format(message, header, opts)
@@ -183,16 +179,24 @@ defmodule Painter do
 
     label = label_for(opts)
     mode = mode_for(opts)
+    log_name = name_for(name)
 
-    log_name =
-      if String.starts_with?(name, "Elixir.") do
-        String.trim_leading(name, "Elixir.")
-      else
-        name
-      end
+    compile_time? =
+      name
+      |> String.to_atom()
+      |> Module.open?()
+
+    time_prefix = if compile_time?, do: "@compile", else: ""
 
     should_reverse? = Keyword.get(opts, :reverse)
-    header = reverse("[#{log_name}#{mode}]", should_reverse?)
+
+    header =
+      "["
+      |> Kernel.<>(log_name)
+      |> Kernel.<>(time_prefix)
+      |> Kernel.<>(mode)
+      |> Kernel.<>("]")
+      |> reverse(should_reverse?)
 
     text = Painter.format(message, header, opts)
 
@@ -200,7 +204,15 @@ defmodule Painter do
     mark_filter = prep_filter(maybe_mark_list)
     highlighted_text = mark_filter.(text)
 
-    final = "#{do_color(header, color)} #{label}#{prefix}#{highlighted_text}#{suffix}"
+    final =
+      header
+      |> do_color(color)
+      |> Kernel.<>(" ")
+      |> Kernel.<>(label)
+      |> Kernel.<>(prefix)
+      |> Kernel.<>(highlighted_text)
+      |> Kernel.<>(suffix)
+
     IO.puts(device, final)
 
     message
@@ -268,11 +280,20 @@ defmodule Painter do
 
   @spec error(mod :: module, message :: any, opts :: Keyword.t()) :: message :: any
   def error(mod, message, opts \\ []) do
-    new_opts =
-      opts
-      |> Keyword.merge(mode: :error)
-
+    new_opts = Keyword.merge(opts, mode: :error)
     do_log(mod_name(mod), :red, message, new_opts)
+  end
+  
+  def fail(mod, cause, opts \\ []) do
+    try do
+      throw(:error)
+    catch
+      :error -> 
+        error(mod, cause, opts)
+        error(mod, __STACKTRACE__, opts)
+    after
+      Process.exit(self(), cause)
+    end
   end
 
   @spec mod_color(mod :: module) :: atom
@@ -291,31 +312,6 @@ defmodule Painter do
 
   def paint_color, do: :light_blue
   def paint_name, do: Atom.to_string(__MODULE__)
-
-  def pretty(env, {type, value}, indent \\ 2) do
-    import Inspect.Algebra
-    br = break("\n")
-
-    file = Path.relative_to(env.file, System.cwd())
-    {mod, {function_name, arity}, line_number} = {env.module, env.function, env.line}
-
-    "Elixir." <> name = Atom.to_string(mod)
-    from_doc = concat([name, ".", to_string(function_name), "/", to_string(arity)])
-
-    br
-    |> concat("├── ")
-    |> concat(type)
-    |> concat(": ")
-    |> concat(Macro.to_string(value))
-    |> concat(br)
-    |> concat("└── ")
-    |> concat(from_doc)
-    |> concat(" - #{file}:#{line_number}")
-    |> nest(indent)
-    |> group()
-    |> Inspect.Algebra.format(0)
-    |> IO.iodata_to_binary()
-  end
 
   def do_warn(message) do
     if should_color?() do
