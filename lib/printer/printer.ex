@@ -75,7 +75,7 @@ defmodule Printer do
     {type, value} = parse(raw_message)
     br = break("\n")
 
-    file = Path.relative_to(env.file, System.cwd())
+    file = Path.relative_to(env.file, File.cwd())
     {mod, {function_name, arity}, line_number} = {env.module, env.function, env.line}
 
     "Elixir." <> name = Atom.to_string(mod)
